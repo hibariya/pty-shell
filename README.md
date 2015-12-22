@@ -11,7 +11,7 @@ pty = '0.1.6'
 pty-shell = '0.1.0'
 ```
 
-and this to your crate root:
+For example, add src/main.rs as following:
 
 ```rust
 extern crate pty;
@@ -23,20 +23,24 @@ use std::process::{Command, Stdio};
 struct Shell;
 impl PtyHandler for Shell {
     fn input(&mut self, _data: Vec<u8>) {
-        Command::new("aplay").arg("sound1.wav").stderr(Stdio::null()).spawn().unwrap();
+        aplay("sound-effect-for-input.wav");
     }
 
     fn output(&mut self, _data: Vec<u8>) {
-        Command::new("aplay").arg("sound2.wav").stderr(Stdio::null()).spawn().unwrap();
+        aplay("sound-effect-for-output.wav");
     }
+}
+
+fn aplay<F: AsRef<str>>(file: F) {
+    Command::new("aplay").arg(file.as_ref()).stderr(Stdio::null()).spawn();
 }
 
 fn main() {
     let child = pty::fork().unwrap();
 
-    child.exec("bash").unwrap();
-    child.proxy(Shell).unwrap();
-    child.wait().unwrap();
+    child.exec("bash");
+    child.proxy(Shell);
+    child.wait();
 }
 ```
 
