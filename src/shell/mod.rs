@@ -1,17 +1,18 @@
-use std::{io, result, thread, process};
+use std::{fmt, io, result, thread, process};
 use std::io::{Read, Write};
 use pty;
 use mio;
 
 pub use self::error::*;
+pub use self::terminal::*;
 use self::raw_handler::*;
 
-pub mod winsize;
 pub mod error;
+pub mod terminal;
+pub mod winsize;
 
 mod raw_handler;
 mod command;
-mod terminal;
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -37,7 +38,7 @@ impl PtyProxy for pty::Child {
 
     fn proxy<H: PtyHandler + 'static>(&self, handler: H) -> Result<()> {
         if self.pid() != 0 {
-            try!(terminal::setup_terminal(self.pty().unwrap()));
+            try!(setup_terminal(self.pty().unwrap()));
             try!(self.do_proxy(handler));
         }
 
@@ -80,6 +81,38 @@ impl PtyProxy for pty::Child {
         try!(event_loop.run(&mut raw_handler));
 
         Ok(())
+    }
+}
+
+pub struct PtyCallback {
+    input_handler: Box<FnMut(Vec<u8>)>,
+    output_handler: Box<FnMut(Vec<u8>)>,
+}
+
+impl PtyCallback {
+    pub fn new<I, O>(input_handler: I, output_handler: O) -> Self
+        where I: FnMut(Vec<u8>) + 'static, O: FnMut(Vec<u8>) + 'static
+    {
+        PtyCallback {
+            input_handler: Box::new(input_handler),
+            output_handler: Box::new(output_handler),
+        }
+    }
+}
+
+impl fmt::Debug for PtyCallback {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "(PtyCallback)")
+    }
+}
+
+impl PtyHandler for PtyCallback {
+    fn input(&mut self, data: Vec<u8>) {
+        (&mut *self.input_handler)(data);
+    }
+
+    fn output(&mut self, data: Vec<u8>) {
+        (&mut *self.output_handler)(data);
     }
 }
 

@@ -6,9 +6,11 @@ use winsize;
 use termios::*;
 
 static mut termios_to_restore: Option<Termios> = None;
-extern "C" fn restore_termios() {
-    let termios = unsafe { termios_to_restore.unwrap() };
-    let _ = tcsetattr(libc::STDIN_FILENO, TCSANOW, &termios);
+pub extern "C" fn restore_termios() {
+    match unsafe { termios_to_restore } {
+        Some(termios) => { let _ = tcsetattr(libc::STDIN_FILENO, TCSANOW, &termios); }
+        None => ()
+    }
 }
 
 pub fn setup_terminal(pty: pty::ChildPTY) -> Result<()> {
