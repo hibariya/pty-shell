@@ -4,7 +4,7 @@ use nix::sys::signal;
 use std::io::Read;
 use std::os::unix::io::AsRawFd;
 use mio::*;
-use shell::PtyHandler;
+use super::PtyHandler;
 use winsize;
 
 pub const INPUT: Token = Token(0);
