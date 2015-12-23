@@ -44,6 +44,17 @@ fn main() {
 }
 ```
 
+### Callback Style
+
+Use `pty_shell::PtyCallback`.
+
+```rust
+child.proxy(PtyCallback::new(
+    |_| aplay("sound1.wav"),
+    |_| aplay("sound2.wav"),
+));
+```
+
 ## Contributing
 
 1. Fork it ( https://github.com/hibariya/pty-shell/fork )
