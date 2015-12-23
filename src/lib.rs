@@ -13,9 +13,6 @@ pub use self::shell::*;
 
 mod shell;
 
-mod pty_shell {
-}
-
 #[cfg(test)]
 mod tests {
     extern crate pty;
