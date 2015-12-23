@@ -1,5 +1,9 @@
 # pty-shell
 
+An extension of pty crate.
+
+https://speakerdeck.com/hibariya/control-a-shell-with-pty-shell
+
 ## Usage
 
 Add this to your `Cargo.toml`:
