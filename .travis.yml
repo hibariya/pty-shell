@@ -4,3 +4,6 @@ rust:
   - beta
   - nightly
 sudo: false
+matrix:
+  allow_failures:
+    - rust: nightly
