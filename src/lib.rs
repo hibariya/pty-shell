@@ -27,9 +27,9 @@ mod command;
 pub type Result<T> = result::Result<T, Error>;
 
 pub trait PtyHandler {
-    fn input(&mut self, _data: Vec<u8>) {}
-    fn output(&mut self, _data: Vec<u8>) {}
-    fn resize(&mut self, _winsize: Winsize) {}
+    fn input(&mut self, _data: &[u8]) {}
+    fn output(&mut self, _data: &[u8]) {}
+    fn resize(&mut self, _winsize: &Winsize) {}
 }
 
 pub trait PtyProxy {
@@ -96,13 +96,13 @@ impl PtyProxy for pty::Child {
 }
 
 pub struct PtyCallback {
-    input_handler: Box<FnMut(Vec<u8>)>,
-    output_handler: Box<FnMut(Vec<u8>)>,
+    input_handler: Box<FnMut(&[u8])>,
+    output_handler: Box<FnMut(&[u8])>,
 }
 
 impl PtyCallback {
     pub fn new<I, O>(input_handler: I, output_handler: O) -> Self
-        where I: FnMut(Vec<u8>) + 'static, O: FnMut(Vec<u8>) + 'static
+        where I: FnMut(&[u8]) + 'static, O: FnMut(&[u8]) + 'static
     {
         PtyCallback {
             input_handler: Box::new(input_handler),
@@ -118,11 +118,11 @@ impl fmt::Debug for PtyCallback {
 }
 
 impl PtyHandler for PtyCallback {
-    fn input(&mut self, data: Vec<u8>) {
+    fn input(&mut self, data: &[u8]) {
         (&mut *self.input_handler)(data);
     }
 
-    fn output(&mut self, data: Vec<u8>) {
+    fn output(&mut self, data: &[u8]) {
         (&mut *self.output_handler)(data);
     }
 }
@@ -169,7 +169,7 @@ mod tests {
 
     struct TestHandler;
     impl PtyHandler for TestHandler {
-        fn output(&mut self, data: Vec<u8>) {
+        fn output(&mut self, data: &[u8]) {
             assert!(data.len() != 0);
         }
     }

@@ -71,7 +71,7 @@ impl Handler for RawHandler {
                     let mut buf = [0; 128];
                     let nread = self.input.read(&mut buf).unwrap();
 
-                    (&mut *self.handler).input(buf[..nread].to_vec());
+                    (&mut *self.handler).input(&buf[..nread]);
                 }
             }
             OUTPUT => {
@@ -83,7 +83,7 @@ impl Handler for RawHandler {
                     if nread <= 0 {
                         event_loop.shutdown();
                     } else {
-                        (&mut *self.handler).output(buf[..nread].to_vec());
+                        (&mut *self.handler).output(&buf[..nread]);
                     }
                 }
             }
@@ -98,7 +98,7 @@ impl Handler for RawHandler {
                 let winsize = winsize::from_fd(libc::STDIN_FILENO).unwrap();
                 winsize::set(self.pty.as_raw_fd(), &winsize);
 
-                (&mut *self.handler).resize(winsize);
+                (&mut *self.handler).resize(&winsize);
 
                 self.resize_count = Self::sigwinch_count();
             }
