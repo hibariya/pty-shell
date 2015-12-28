@@ -15,6 +15,7 @@ use std::io::{Read, Write};
 pub use self::error::*;
 pub use self::terminal::*;
 use self::raw_handler::*;
+use self::winsize::Winsize;
 
 pub mod error;
 pub mod terminal;
@@ -28,6 +29,7 @@ pub type Result<T> = result::Result<T, Error>;
 pub trait PtyHandler {
     fn input(&mut self, _data: Vec<u8>) {}
     fn output(&mut self, _data: Vec<u8>) {}
+    fn resize(&mut self, _winsize: Winsize) {}
 }
 
 pub trait PtyProxy {
@@ -167,7 +169,6 @@ mod tests {
 
     struct TestHandler;
     impl PtyHandler for TestHandler {
-        fn input(&mut self, _data: Vec<u8>) {}
         fn output(&mut self, data: Vec<u8>) {
             assert!(data.len() != 0);
         }

@@ -98,8 +98,9 @@ impl Handler for RawHandler {
                 let winsize = winsize::from_fd(libc::STDIN_FILENO).unwrap();
                 winsize::set(self.pty.as_raw_fd(), &winsize);
 
-                self.resize_count = Self::sigwinch_count();
+                (&mut *self.handler).resize(winsize);
 
+                self.resize_count = Self::sigwinch_count();
             }
         }
     }
