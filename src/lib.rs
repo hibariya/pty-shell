@@ -96,38 +96,6 @@ impl PtyProxy for pty::Child {
     }
 }
 
-pub struct PtyCallback {
-    input_handler: Box<FnMut(&[u8])>,
-    output_handler: Box<FnMut(&[u8])>,
-}
-
-impl PtyCallback {
-    pub fn new<I, O>(input_handler: I, output_handler: O) -> Self
-        where I: FnMut(&[u8]) + 'static, O: FnMut(&[u8]) + 'static
-    {
-        PtyCallback {
-            input_handler: Box::new(input_handler),
-            output_handler: Box::new(output_handler),
-        }
-    }
-}
-
-impl fmt::Debug for PtyCallback {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(PtyCallback)")
-    }
-}
-
-impl PtyHandler for PtyCallback {
-    fn input(&mut self, data: &[u8]) {
-        (&mut *self.input_handler)(data);
-    }
-
-    fn output(&mut self, data: &[u8]) {
-        (&mut *self.output_handler)(data);
-    }
-}
-
 fn handle_input(writer: &mut pty::ChildPTY, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
     let mut input = io::stdin();
     let mut buf   = [0; 128];
@@ -159,6 +127,87 @@ fn handle_output(reader: &mut pty::ChildPTY, handler_writer: &mut mio::unix::Pip
 
     Ok(())
 }
+
+pub struct PtyCallbackData {
+    input_handler: Box<FnMut(&[u8])>,
+    output_handler: Box<FnMut(&[u8])>,
+    resize_handler: Box<FnMut(&Winsize)>,
+    shutdown_handler: Box<FnMut()>,
+}
+
+impl fmt::Debug for PtyCallbackData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "(PtyCallbackData)")
+    }
+}
+
+impl PtyHandler for PtyCallbackData {
+    fn input(&mut self, data: &[u8]) {
+        (&mut *self.input_handler)(data);
+    }
+
+    fn output(&mut self, data: &[u8]) {
+        (&mut *self.output_handler)(data);
+    }
+
+    fn resize(&mut self, size: &Winsize) {
+        (&mut *self.resize_handler)(size);
+    }
+
+    fn shutdown(&mut self) {
+        (&mut *self.shutdown_handler)();
+    }
+}
+
+#[derive(Debug)]
+struct PtyCallbackBuilder(PtyCallbackData);
+
+impl PtyCallbackBuilder {
+    pub fn new() -> Self {
+        let data = PtyCallbackData {
+            input_handler: Box::new(|_| {}),
+            output_handler: Box::new(|_| {}),
+            resize_handler: Box::new(|_| {}),
+            shutdown_handler: Box::new(|| {}),
+        };
+
+        PtyCallbackBuilder(data)
+    }
+
+    pub fn input<F>(mut self, handler: F) -> Self
+        where F: FnMut(&[u8]) + 'static {
+            self.0.input_handler = Box::new(handler);
+
+            self
+    }
+
+    pub fn output<F>(mut self, handler: F) -> Self
+        where F: FnMut(&[u8]) + 'static {
+            self.0.output_handler = Box::new(handler);
+
+            self
+    }
+
+    pub fn resize<F>(mut self, handler: F) -> Self
+        where F: FnMut(&Winsize) + 'static {
+            self.0.resize_handler = Box::new(handler);
+
+            self
+    }
+
+    pub fn shutdown<F>(mut self, handler: F) -> Self
+        where F: FnMut() + 'static {
+            self.0.shutdown_handler = Box::new(handler);
+
+            self
+    }
+
+    pub fn build(self) -> PtyCallbackData {
+        self.0
+    }
+}
+
+pub type PtyCallback = PtyCallbackBuilder;
 
 #[cfg(test)]
 mod tests {
@@ -203,10 +252,11 @@ mod tests {
         let child = pty::fork().unwrap();
         restore_termios();
 
-        child.proxy(PtyCallback::new(
-            |_input| {},
-            |output| assert!(output.len() != 0),
-        )).unwrap();
+        child.proxy(
+            PtyCallback::new()
+                .output(|data| assert!(data.len() != 0))
+                .build()
+        ).unwrap();
         child.exec("pwd").unwrap();
 
         assert!(child.wait().is_ok());
