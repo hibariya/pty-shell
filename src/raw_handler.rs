@@ -115,3 +115,6 @@ impl Handler for RawHandler {
         }
     }
 }
+
+unsafe impl ::std::marker::Send for RawHandler { }
+unsafe impl ::std::marker::Sync for RawHandler { }

@@ -9,7 +9,7 @@ extern crate pty;
 extern crate termios;
 extern crate mio;
 
-use std::{fmt, io, result, thread, process};
+use std::{fmt, io, result, thread};
 use std::io::{Read, Write};
 
 pub use self::error::*;
@@ -66,7 +66,6 @@ impl PtyProxy for pty::Child {
         thread::spawn(move || {
             handle_input(&mut writer, &mut input_writer).unwrap_or_else(|e| {
                 println!("{:?}", e);
-                process::exit(1);
             });
         });
 
@@ -77,7 +76,6 @@ impl PtyProxy for pty::Child {
         thread::spawn(move || {
             handle_output(&mut reader, &mut output_writer).unwrap_or_else(|e| {
                 println!("{:?}", e);
-                process::exit(1);
             });
 
             message_sender.send(Message::Shutdown).unwrap();
@@ -85,12 +83,15 @@ impl PtyProxy for pty::Child {
 
         try!(event_loop.register(&input_reader, INPUT, mio::EventSet::readable(), mio::PollOpt::level()));
         try!(event_loop.register(&output_reader, OUTPUT, mio::EventSet::readable(), mio::PollOpt::level()));
-
         RawHandler::register_sigwinch_handler();
 
         let mut raw_handler = RawHandler::new(input_reader, output_reader, self.pty().unwrap(), Box::new(handler));
 
-        try!(event_loop.run(&mut raw_handler));
+        thread::spawn(move || {
+            event_loop.run(&mut raw_handler).unwrap_or_else(|e| {
+                println!("{:?}", e);
+            });
+        });
 
         Ok(())
     }
