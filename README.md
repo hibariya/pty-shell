@@ -12,7 +12,7 @@ Add this to your `Cargo.toml`:
 [dependencies]
 
 pty = '0.1.6'
-pty-shell = '0.1.1'
+pty-shell = '0.1.2'
 ```
 
 For example, add src/main.rs as following:
@@ -21,22 +21,25 @@ For example, add src/main.rs as following:
 extern crate pty;
 extern crate pty_shell;
 
-use pty_shell::{PtyProxy, PtyHandler};
-use std::process::{Command, Stdio};
+use pty_shell::{winsize, PtyProxy, PtyHandler};
 
 struct Shell;
 impl PtyHandler for Shell {
-    fn input(&mut self, _data: Vec<u8>) {
-        aplay("sound-effect-for-input.wav");
+    fn input(&mut self, input: &[u8]) {
+      /* do something with input */
     }
 
-    fn output(&mut self, _data: Vec<u8>) {
-        aplay("sound-effect-for-output.wav");
+    fn output(&mut self, output: &[u8]) {
+      /* do something with output */
     }
-}
 
-fn aplay<F: AsRef<str>>(file: F) {
-    Command::new("aplay").arg(file.as_ref()).stderr(Stdio::null()).spawn();
+    fn resize(&mut self, winsize: &winsize::Winsize) {
+      /* do something with winsize */
+    }
+
+    fn shutdown(&mut self) {
+      /* prepare for shutdown */
+    }
 }
 
 fn main() {
@@ -53,11 +56,21 @@ fn main() {
 Use `pty_shell::PtyCallback`.
 
 ```rust
-child.proxy(PtyCallback::new(
-    |_| aplay("sound1.wav"),
-    |_| aplay("sound2.wav"),
-));
+child.proxy(
+    PtyCallback::new()
+        .input(|input| { /* do something with input */ })
+        .output(|output| { /* do something with output */ })
+        .build()
+    )
+);
 ```
+
+### Event types
+
+* input
+* output
+* resize
+* shutdown
 
 ## Contributing
 
