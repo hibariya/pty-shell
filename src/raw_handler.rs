@@ -25,7 +25,7 @@ pub struct RawHandler {
     pub resize_count: i32,
 }
 
-pub enum Instruction {
+pub enum Message {
     Shutdown,
     Resize,
 }
@@ -62,7 +62,7 @@ impl RawHandler {
 
 impl Handler for RawHandler {
     type Timeout = ();
-    type Message = Instruction;
+    type Message = Message;
 
     fn ready(&mut self, event_loop: &mut EventLoop<RawHandler>, token: Token, events: EventSet) {
         match token {
@@ -91,10 +91,14 @@ impl Handler for RawHandler {
         }
     }
 
-    fn notify(&mut self, event_loop: &mut EventLoop<RawHandler>, message: Instruction) {
+    fn notify(&mut self, event_loop: &mut EventLoop<RawHandler>, message: Message) {
         match message {
-            Instruction::Shutdown => event_loop.shutdown(),
-            Instruction::Resize => {
+            Message::Shutdown => {
+                event_loop.shutdown();
+
+                (&mut *self.handler).shutdown();
+            }
+            Message::Resize => {
                 let winsize = winsize::from_fd(libc::STDIN_FILENO).unwrap();
                 winsize::set(self.pty.as_raw_fd(), &winsize);
 
@@ -107,7 +111,7 @@ impl Handler for RawHandler {
 
     fn tick(&mut self, event_loop: &mut EventLoop<RawHandler>) {
         if self.should_resize() {
-            let _ = event_loop.channel().send(Instruction::Resize);
+            let _ = event_loop.channel().send(Message::Resize);
         }
     }
 }

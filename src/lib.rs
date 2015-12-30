@@ -30,6 +30,7 @@ pub trait PtyHandler {
     fn input(&mut self, _data: &[u8]) {}
     fn output(&mut self, _data: &[u8]) {}
     fn resize(&mut self, _winsize: &Winsize) {}
+    fn shutdown(&mut self) {}
 }
 
 pub trait PtyProxy {
@@ -79,7 +80,7 @@ impl PtyProxy for pty::Child {
                 process::exit(1);
             });
 
-            message_sender.send(Instruction::Shutdown).unwrap();
+            message_sender.send(Message::Shutdown).unwrap();
         });
 
         try!(event_loop.register(&input_reader, INPUT, mio::EventSet::readable(), mio::PollOpt::level()));
