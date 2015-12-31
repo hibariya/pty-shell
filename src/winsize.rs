@@ -1,5 +1,4 @@
 use libc;
-use libc::funcs::bsd44::ioctl;
 use std::io;
 
 #[cfg(target_os="macos")]
@@ -8,9 +7,9 @@ const TIOCGWINSZ: libc::c_ulonglong = 0x5413;
 const TIOCSWINSZ: libc::c_ulonglong = 0x5414;
 
 #[cfg(target_os="linux")]
-const TIOCGWINSZ: libc::c_int = 0x5413;
+const TIOCGWINSZ: libc::c_ulong = 0x5413;
 #[cfg(target_os="linux")]
-const TIOCSWINSZ: libc::c_int = 0x5414;
+const TIOCSWINSZ: libc::c_ulong = 0x5414;
 
 #[repr(C)]
 #[derive(PartialEq, Debug)]
@@ -30,7 +29,7 @@ pub fn from_fd(fd: libc::c_int) -> io::Result<Winsize> {
     };
 
     unsafe {
-        ioctl(fd, TIOCGWINSZ, &winsize);
+        libc::ioctl(fd, TIOCGWINSZ, &winsize);
     }
 
     Ok(winsize)
@@ -38,6 +37,6 @@ pub fn from_fd(fd: libc::c_int) -> io::Result<Winsize> {
 
 pub fn set(fd: libc::c_int, winsize: &Winsize) {
     unsafe {
-        ioctl(fd, TIOCSWINSZ, winsize);
+        libc::ioctl(fd, TIOCSWINSZ, winsize);
     }
 }

@@ -9,8 +9,8 @@ description='Spawn a shell and control it through pty'
 keywords = ['pty', 'tty', 'shell', 'terminal']
 
 [dependencies]
-libc='0.1.8'
-mio='0.5.0'
-nix='0.3.9'
+libc='0.2'
+mio='0.5'
+nix='0.4'
 pty='0.1.6'
 termios='0.2.0'
