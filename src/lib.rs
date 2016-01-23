@@ -33,13 +33,12 @@ pub trait PtyHandler {
     fn shutdown(&mut self) {}
 }
 
-pub trait PtyProxy {
+pub trait PtyShell {
     fn exec<S: AsRef<str>>(&self, shell: S) -> Result<()>;
     fn proxy<H: PtyHandler>(&self, handler: H) -> Result<()>;
-    fn do_proxy<H: PtyHandler>(&self, handler: H) -> Result<()>;
 }
 
-impl PtyProxy for pty::Child {
+impl PtyShell for pty::Child {
     fn exec<S: AsRef<str>>(&self, shell: S) -> Result<()> {
         if self.pid() == 0 {
             command::exec(shell);
@@ -51,50 +50,50 @@ impl PtyProxy for pty::Child {
     fn proxy<H: PtyHandler + 'static>(&self, handler: H) -> Result<()> {
         if self.pid() != 0 {
             try!(setup_terminal(self.pty().unwrap()));
-            try!(self.do_proxy(handler));
+            try!(do_proxy(self.pty().unwrap(), handler));
         }
 
         Ok(())
     }
+}
 
-    fn do_proxy<H: PtyHandler + 'static>(&self, handler: H) -> Result<()> {
-        let mut event_loop = try!(mio::EventLoop::new());
+fn do_proxy<H: PtyHandler + 'static>(pty: pty::ChildPTY, handler: H) -> Result<()> {
+    let mut event_loop = try!(mio::EventLoop::new());
 
-        let mut writer = self.pty().unwrap();
-        let (input_reader, mut input_writer) = try!(mio::unix::pipe());
+    let mut writer = pty.clone();
+    let (input_reader, mut input_writer) = try!(mio::unix::pipe());
 
-        thread::spawn(move || {
-            handle_input(&mut writer, &mut input_writer).unwrap_or_else(|e| {
-                println!("{:?}", e);
-            });
+    thread::spawn(move || {
+        handle_input(&mut writer, &mut input_writer).unwrap_or_else(|e| {
+            println!("{:?}", e);
+        });
+    });
+
+    let mut reader = pty.clone();
+    let (output_reader, mut output_writer) = try!(mio::unix::pipe());
+    let message_sender = event_loop.channel();
+
+    thread::spawn(move || {
+        handle_output(&mut reader, &mut output_writer).unwrap_or_else(|e| {
+            println!("{:?}", e);
         });
 
-        let mut reader = self.pty().unwrap();
-        let (output_reader, mut output_writer) = try!(mio::unix::pipe());
-        let message_sender = event_loop.channel();
+        message_sender.send(Message::Shutdown).unwrap();
+    });
 
-        thread::spawn(move || {
-            handle_output(&mut reader, &mut output_writer).unwrap_or_else(|e| {
-                println!("{:?}", e);
-            });
+    try!(event_loop.register(&input_reader, INPUT, mio::EventSet::readable(), mio::PollOpt::level()));
+    try!(event_loop.register(&output_reader, OUTPUT, mio::EventSet::readable(), mio::PollOpt::level()));
+    RawHandler::register_sigwinch_handler();
 
-            message_sender.send(Message::Shutdown).unwrap();
+    let mut raw_handler = RawHandler::new(input_reader, output_reader, pty.clone(), Box::new(handler));
+
+    thread::spawn(move || {
+        event_loop.run(&mut raw_handler).unwrap_or_else(|e| {
+            println!("{:?}", e);
         });
+    });
 
-        try!(event_loop.register(&input_reader, INPUT, mio::EventSet::readable(), mio::PollOpt::level()));
-        try!(event_loop.register(&output_reader, OUTPUT, mio::EventSet::readable(), mio::PollOpt::level()));
-        RawHandler::register_sigwinch_handler();
-
-        let mut raw_handler = RawHandler::new(input_reader, output_reader, self.pty().unwrap(), Box::new(handler));
-
-        thread::spawn(move || {
-            event_loop.run(&mut raw_handler).unwrap_or_else(|e| {
-                println!("{:?}", e);
-            });
-        });
-
-        Ok(())
-    }
+    Ok(())
 }
 
 fn handle_input(writer: &mut pty::ChildPTY, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
@@ -161,7 +160,7 @@ impl PtyHandler for PtyCallbackData {
 }
 
 #[derive(Debug)]
-struct PtyCallbackBuilder(PtyCallbackData);
+pub struct PtyCallbackBuilder(PtyCallbackData);
 
 impl PtyCallbackBuilder {
     pub fn new() -> Self {
@@ -214,7 +213,7 @@ pub type PtyCallback = PtyCallbackBuilder;
 mod tests {
     extern crate pty;
 
-    use PtyProxy;
+    use PtyShell;
     use PtyHandler;
     use terminal::restore_termios;
 

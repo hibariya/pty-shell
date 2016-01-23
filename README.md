@@ -21,7 +21,7 @@ For example, add src/main.rs as following:
 extern crate pty;
 extern crate pty_shell;
 
-use pty_shell::{winsize, PtyProxy, PtyHandler};
+use pty_shell::{winsize, PtyShell, PtyHandler};
 
 struct Shell;
 impl PtyHandler for Shell {
