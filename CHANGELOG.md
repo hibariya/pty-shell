@@ -1,3 +1,7 @@
+### 0.1.3
+
+* Rename `PtyProxy` to `PtyShell`
+
 ### 0.1.2
 
 * Change the argument type of the input/output handler (from `Vec<u8>` to `&[u8]`)
