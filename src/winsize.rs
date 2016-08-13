@@ -12,7 +12,7 @@ const TIOCGWINSZ: libc::c_ulong = 0x5413;
 const TIOCSWINSZ: libc::c_ulong = 0x5414;
 
 #[repr(C)]
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Clone, Debug, Default)]
 pub struct Winsize {
     pub ws_row: libc::c_ushort, // rows, in characters
     pub ws_col: libc::c_ushort, // columns, in characters
@@ -21,12 +21,7 @@ pub struct Winsize {
 }
 
 pub fn from_fd(fd: libc::c_int) -> io::Result<Winsize> {
-    let winsize = Winsize {
-        ws_row: 0,
-        ws_col: 0,
-        ws_xpixel: 0,
-        ws_ypixel: 0,
-    };
+    let winsize = Winsize::default();
 
     unsafe {
         libc::ioctl(fd, TIOCGWINSZ, &winsize);
