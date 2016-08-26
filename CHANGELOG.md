@@ -1,3 +1,7 @@
+### 0.1.4
+
+* [#4](https://github.com/hibariya/pty-shell/pull/4) Use derives Default and Clone for Winsize Structure
+
 ### 0.1.3
 
 * Rename `PtyProxy` to `PtyShell`
