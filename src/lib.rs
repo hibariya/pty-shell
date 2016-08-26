@@ -17,6 +17,8 @@ pub use self::terminal::*;
 use self::raw_handler::*;
 use self::winsize::Winsize;
 
+pub use pty::prelude as tty;
+
 pub mod error;
 pub mod terminal;
 pub mod winsize;
@@ -38,9 +40,9 @@ pub trait PtyShell {
     fn proxy<H: PtyHandler>(&self, handler: H) -> Result<()>;
 }
 
-impl PtyShell for pty::Child {
+impl PtyShell for tty::Fork {
     fn exec<S: AsRef<str>>(&self, shell: S) -> Result<()> {
-        if self.pid() == 0 {
+        if self.is_child().is_ok() {
             command::exec(shell);
         }
 
@@ -48,16 +50,15 @@ impl PtyShell for pty::Child {
     }
 
     fn proxy<H: PtyHandler + 'static>(&self, handler: H) -> Result<()> {
-        if self.pid() != 0 {
-            try!(setup_terminal(self.pty().unwrap()));
-            try!(do_proxy(self.pty().unwrap(), handler));
+        if let Some(master) = self.is_father().ok() {
+            try!(setup_terminal(master));
+            try!(do_proxy(master, handler));
         }
-
         Ok(())
     }
 }
 
-fn do_proxy<H: PtyHandler + 'static>(pty: pty::ChildPTY, handler: H) -> Result<()> {
+fn do_proxy<H: PtyHandler + 'static>(pty: tty::Master, handler: H) -> Result<()> {
     let mut event_loop = try!(mio::EventLoop::new());
 
     let mut writer = pty.clone();
@@ -96,7 +97,7 @@ fn do_proxy<H: PtyHandler + 'static>(pty: pty::ChildPTY, handler: H) -> Result<(
     Ok(())
 }
 
-fn handle_input(writer: &mut pty::ChildPTY, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
+fn handle_input(writer: &mut tty::Master, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
     let mut input = io::stdin();
     let mut buf   = [0; 128];
 
@@ -108,7 +109,7 @@ fn handle_input(writer: &mut pty::ChildPTY, handler_writer: &mut mio::unix::Pipe
     }
 }
 
-fn handle_output(reader: &mut pty::ChildPTY, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
+fn handle_output(reader: &mut tty::Master, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
     let mut output = io::stdout();
     let mut buf    = [0; 1024 * 10];
 
@@ -208,57 +209,3 @@ impl PtyCallbackBuilder {
 }
 
 pub type PtyCallback = PtyCallbackBuilder;
-
-#[cfg(test)]
-mod tests {
-    extern crate pty;
-
-    use PtyShell;
-    use PtyHandler;
-    use terminal::restore_termios;
-
-    struct TestHandler;
-    impl PtyHandler for TestHandler {
-        fn output(&mut self, data: &[u8]) {
-            assert!(data.len() != 0);
-        }
-    }
-
-    #[test]
-    fn it_can_spawn() {
-        let child = pty::fork().unwrap();
-        restore_termios();
-
-        child.exec("pwd").unwrap();
-
-        assert!(child.wait().is_ok());
-    }
-
-    #[test]
-    fn it_can_hook_stdout_with_handler() {
-        let child = pty::fork().unwrap();
-        restore_termios();
-
-        child.proxy(TestHandler).unwrap();
-        child.exec("pwd").unwrap();
-
-        assert!(child.wait().is_ok());
-    }
-
-    #[test]
-    fn it_can_hook_stdout_with_callback() {
-        use PtyCallback;
-
-        let child = pty::fork().unwrap();
-        restore_termios();
-
-        child.proxy(
-            PtyCallback::new()
-                .output(|data| assert!(data.len() != 0))
-                .build()
-        ).unwrap();
-        child.exec("pwd").unwrap();
-
-        assert!(child.wait().is_ok());
-    }
-}

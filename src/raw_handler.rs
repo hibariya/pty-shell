@@ -1,4 +1,3 @@
-use pty;
 use libc;
 use nix::sys::signal;
 use std::io::Read;
@@ -6,6 +5,8 @@ use std::os::unix::io::AsRawFd;
 use mio::*;
 use super::PtyHandler;
 use winsize;
+
+use ::tty;
 
 pub const INPUT: Token = Token(0);
 pub const OUTPUT: Token = Token(1);
@@ -20,7 +21,7 @@ extern "C" fn handle_sigwinch(_: i32) {
 pub struct RawHandler {
     pub input: unix::PipeReader,
     pub output: unix::PipeReader,
-    pub pty: pty::ChildPTY,
+    pub pty: tty::Master,
     pub handler: Box<PtyHandler>,
     pub resize_count: i32,
 }
@@ -31,7 +32,7 @@ pub enum Message {
 }
 
 impl RawHandler {
-    pub fn new(input: unix::PipeReader, output: unix::PipeReader, pty: pty::ChildPTY, handler: Box<PtyHandler>) -> Self {
+    pub fn new(input: unix::PipeReader, output: unix::PipeReader, pty: tty::Master, handler: Box<PtyHandler>) -> Self {
         RawHandler {
             input: input,
             output: output,

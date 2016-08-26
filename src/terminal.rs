@@ -1,9 +1,10 @@
 use libc;
-use pty;
 use std::os::unix::io::AsRawFd;
 use std::io::Result;
 use winsize;
 use termios::*;
+
+use ::tty;
 
 static mut termios_to_restore: Option<Termios> = None;
 pub extern "C" fn restore_termios() {
@@ -13,7 +14,7 @@ pub extern "C" fn restore_termios() {
     }
 }
 
-pub fn setup_terminal(pty: pty::ChildPTY) -> Result<()> {
+pub fn setup_terminal(pty: tty::Master) -> Result<()> {
     let termios = try!(Termios::from_fd(libc::STDIN_FILENO));
 
     unsafe {

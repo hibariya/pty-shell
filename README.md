@@ -10,15 +10,12 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-
-pty = '0.1.6'
-pty-shell = '0.1.3'
+pty-shell = '0.2.0'
 ```
 
 For example, add src/main.rs as following:
 
 ```rust
-extern crate pty;
 extern crate pty_shell;
 
 use pty_shell::{winsize, PtyShell, PtyHandler};
