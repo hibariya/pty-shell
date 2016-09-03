@@ -50,7 +50,7 @@ impl PtyShell for tty::Fork {
     }
 
     fn proxy<H: PtyHandler + 'static>(&self, handler: H) -> Result<()> {
-        if let Some(master) = self.is_father().ok() {
+        if let Some(master) = self.is_parent().ok() {
             try!(setup_terminal(master));
             try!(do_proxy(master, handler));
         }
