@@ -4,10 +4,10 @@ use self::pty_shell::*;
 
 #[test]
 fn it_can_spawn() {
-	let child = tty::Fork::from_ptmx().unwrap();
-	restore_termios();
+    let child = tty::Fork::from_ptmx().unwrap();
+    restore_termios();
 
-	child.exec("pwd").unwrap();
+    child.exec("pwd").unwrap();
 
-	assert!(child.wait().is_ok());
+    assert!(child.wait().is_ok());
 }

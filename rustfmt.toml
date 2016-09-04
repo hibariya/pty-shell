@@ -1,4 +1,2 @@
 tabs_spaces=4
-hard_tabs=true
-fn_arg_indent="Tabbed"
-reorder_imports=true
+hard_tabs=false
