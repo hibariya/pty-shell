@@ -12,7 +12,5 @@ keywords = ['pty', 'tty', 'shell', 'terminal']
 libc='0.2'
 mio='0.5'
 nix='0.4'
+pty='0.2'
 termios='0.2.0'
-
-[dependencies.pty]
-git = "https://github.com/adjivas/pty-rs.git"
