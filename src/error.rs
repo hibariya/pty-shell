@@ -1,9 +1,10 @@
-use pty;
 use std::{self, io, fmt};
+
+use ::tty;
 
 #[derive(Debug)]
 pub enum Error {
-    Pty(pty::Error),
+    Pty(tty::ForkError),
     Io(io::Error),
 }
 
@@ -26,8 +27,8 @@ impl fmt::Display for Error {
     }
 }
 
-impl From<pty::Error> for Error {
-    fn from(err: pty::Error) -> Error {
+impl From<tty::ForkError> for Error {
+    fn from(err: tty::ForkError) -> Error {
         Error::Pty(err)
     }
 }

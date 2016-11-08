@@ -1,19 +1,22 @@
 use libc;
-use pty;
-use std::os::unix::io::AsRawFd;
 use std::io::Result;
-use winsize;
+use std::os::unix::io::AsRawFd;
 use termios::*;
+
+use ::tty;
+use winsize;
 
 static mut termios_to_restore: Option<Termios> = None;
 pub extern "C" fn restore_termios() {
     match unsafe { termios_to_restore } {
-        Some(termios) => { let _ = tcsetattr(libc::STDIN_FILENO, TCSANOW, &termios); }
-        None => ()
+        Some(termios) => {
+            let _ = tcsetattr(libc::STDIN_FILENO, TCSANOW, &termios);
+        }
+        None => (),
     }
 }
 
-pub fn setup_terminal(pty: pty::ChildPTY) -> Result<()> {
+pub fn setup_terminal(pty: tty::Master) -> Result<()> {
     let termios = try!(Termios::from_fd(libc::STDIN_FILENO));
 
     unsafe {

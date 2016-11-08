@@ -9,13 +9,14 @@ extern crate pty;
 extern crate termios;
 extern crate mio;
 
-use std::{fmt, io, result, thread};
-use std::io::{Read, Write};
+pub use pty::prelude as tty;
 
 pub use self::error::*;
-pub use self::terminal::*;
 use self::raw_handler::*;
+pub use self::terminal::*;
 use self::winsize::Winsize;
+use std::{fmt, io, result, thread};
+use std::io::{Read, Write};
 
 pub mod error;
 pub mod terminal;
@@ -38,9 +39,9 @@ pub trait PtyShell {
     fn proxy<H: PtyHandler>(&self, handler: H) -> Result<()>;
 }
 
-impl PtyShell for pty::Child {
+impl PtyShell for tty::Fork {
     fn exec<S: AsRef<str>>(&self, shell: S) -> Result<()> {
-        if self.pid() == 0 {
+        if self.is_child().is_ok() {
             command::exec(shell);
         }
 
@@ -48,16 +49,15 @@ impl PtyShell for pty::Child {
     }
 
     fn proxy<H: PtyHandler + 'static>(&self, handler: H) -> Result<()> {
-        if self.pid() != 0 {
-            try!(setup_terminal(self.pty().unwrap()));
-            try!(do_proxy(self.pty().unwrap(), handler));
+        if let Some(master) = self.is_parent().ok() {
+            try!(setup_terminal(master));
+            try!(do_proxy(master, handler));
         }
-
         Ok(())
     }
 }
 
-fn do_proxy<H: PtyHandler + 'static>(pty: pty::ChildPTY, handler: H) -> Result<()> {
+fn do_proxy<H: PtyHandler + 'static>(pty: tty::Master, handler: H) -> Result<()> {
     let mut event_loop = try!(mio::EventLoop::new());
 
     let mut writer = pty.clone();
@@ -81,11 +81,18 @@ fn do_proxy<H: PtyHandler + 'static>(pty: pty::ChildPTY, handler: H) -> Result<(
         message_sender.send(Message::Shutdown).unwrap();
     });
 
-    try!(event_loop.register(&input_reader, INPUT, mio::EventSet::readable(), mio::PollOpt::level()));
-    try!(event_loop.register(&output_reader, OUTPUT, mio::EventSet::readable(), mio::PollOpt::level()));
+    try!(event_loop.register(&input_reader,
+                             INPUT,
+                             mio::EventSet::readable(),
+                             mio::PollOpt::level()));
+    try!(event_loop.register(&output_reader,
+                             OUTPUT,
+                             mio::EventSet::readable(),
+                             mio::PollOpt::level()));
     RawHandler::register_sigwinch_handler();
 
-    let mut raw_handler = RawHandler::new(input_reader, output_reader, pty.clone(), Box::new(handler));
+    let mut raw_handler =
+        RawHandler::new(input_reader, output_reader, pty.clone(), Box::new(handler));
 
     thread::spawn(move || {
         event_loop.run(&mut raw_handler).unwrap_or_else(|e| {
@@ -96,9 +103,11 @@ fn do_proxy<H: PtyHandler + 'static>(pty: pty::ChildPTY, handler: H) -> Result<(
     Ok(())
 }
 
-fn handle_input(writer: &mut pty::ChildPTY, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
+fn handle_input(writer: &mut tty::Master,
+                handler_writer: &mut mio::unix::PipeWriter)
+                -> Result<()> {
     let mut input = io::stdin();
-    let mut buf   = [0; 128];
+    let mut buf = [0; 128];
 
     loop {
         let nread = try!(input.read(&mut buf));
@@ -108,9 +117,11 @@ fn handle_input(writer: &mut pty::ChildPTY, handler_writer: &mut mio::unix::Pipe
     }
 }
 
-fn handle_output(reader: &mut pty::ChildPTY, handler_writer: &mut mio::unix::PipeWriter) -> Result<()> {
+fn handle_output(reader: &mut tty::Master,
+                 handler_writer: &mut mio::unix::PipeWriter)
+                 -> Result<()> {
     let mut output = io::stdout();
-    let mut buf    = [0; 1024 * 10];
+    let mut buf = [0; 1024 * 10];
 
     loop {
         let nread = try!(reader.read(&mut buf));
@@ -175,31 +186,35 @@ impl PtyCallbackBuilder {
     }
 
     pub fn input<F>(mut self, handler: F) -> Self
-        where F: FnMut(&[u8]) + 'static {
-            self.0.input_handler = Box::new(handler);
+        where F: FnMut(&[u8]) + 'static
+    {
+        self.0.input_handler = Box::new(handler);
 
-            self
+        self
     }
 
     pub fn output<F>(mut self, handler: F) -> Self
-        where F: FnMut(&[u8]) + 'static {
-            self.0.output_handler = Box::new(handler);
+        where F: FnMut(&[u8]) + 'static
+    {
+        self.0.output_handler = Box::new(handler);
 
-            self
+        self
     }
 
     pub fn resize<F>(mut self, handler: F) -> Self
-        where F: FnMut(&Winsize) + 'static {
-            self.0.resize_handler = Box::new(handler);
+        where F: FnMut(&Winsize) + 'static
+    {
+        self.0.resize_handler = Box::new(handler);
 
-            self
+        self
     }
 
     pub fn shutdown<F>(mut self, handler: F) -> Self
-        where F: FnMut() + 'static {
-            self.0.shutdown_handler = Box::new(handler);
+        where F: FnMut() + 'static
+    {
+        self.0.shutdown_handler = Box::new(handler);
 
-            self
+        self
     }
 
     pub fn build(self) -> PtyCallbackData {
@@ -208,57 +223,3 @@ impl PtyCallbackBuilder {
 }
 
 pub type PtyCallback = PtyCallbackBuilder;
-
-#[cfg(test)]
-mod tests {
-    extern crate pty;
-
-    use PtyShell;
-    use PtyHandler;
-    use terminal::restore_termios;
-
-    struct TestHandler;
-    impl PtyHandler for TestHandler {
-        fn output(&mut self, data: &[u8]) {
-            assert!(data.len() != 0);
-        }
-    }
-
-    #[test]
-    fn it_can_spawn() {
-        let child = pty::fork().unwrap();
-        restore_termios();
-
-        child.exec("pwd").unwrap();
-
-        assert!(child.wait().is_ok());
-    }
-
-    #[test]
-    fn it_can_hook_stdout_with_handler() {
-        let child = pty::fork().unwrap();
-        restore_termios();
-
-        child.proxy(TestHandler).unwrap();
-        child.exec("pwd").unwrap();
-
-        assert!(child.wait().is_ok());
-    }
-
-    #[test]
-    fn it_can_hook_stdout_with_callback() {
-        use PtyCallback;
-
-        let child = pty::fork().unwrap();
-        restore_termios();
-
-        child.proxy(
-            PtyCallback::new()
-                .output(|data| assert!(data.len() != 0))
-                .build()
-        ).unwrap();
-        child.exec("pwd").unwrap();
-
-        assert!(child.wait().is_ok());
-    }
-}

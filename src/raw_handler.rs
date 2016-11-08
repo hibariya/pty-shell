@@ -1,10 +1,11 @@
-use pty;
 use libc;
+use mio::*;
 use nix::sys::signal;
 use std::io::Read;
 use std::os::unix::io::AsRawFd;
-use mio::*;
 use super::PtyHandler;
+
+use ::tty;
 use winsize;
 
 pub const INPUT: Token = Token(0);
@@ -20,7 +21,7 @@ extern "C" fn handle_sigwinch(_: i32) {
 pub struct RawHandler {
     pub input: unix::PipeReader,
     pub output: unix::PipeReader,
-    pub pty: pty::ChildPTY,
+    pub pty: tty::Master,
     pub handler: Box<PtyHandler>,
     pub resize_count: i32,
 }
@@ -31,7 +32,11 @@ pub enum Message {
 }
 
 impl RawHandler {
-    pub fn new(input: unix::PipeReader, output: unix::PipeReader, pty: pty::ChildPTY, handler: Box<PtyHandler>) -> Self {
+    pub fn new(input: unix::PipeReader,
+               output: unix::PipeReader,
+               pty: tty::Master,
+               handler: Box<PtyHandler>)
+               -> Self {
         RawHandler {
             input: input,
             output: output,
@@ -42,7 +47,9 @@ impl RawHandler {
     }
 
     pub fn register_sigwinch_handler() {
-        let sig_action = signal::SigAction::new(handle_sigwinch, signal::signal::SA_RESTART, signal::SigSet::empty());
+        let sig_action = signal::SigAction::new(handle_sigwinch,
+                                                signal::signal::SA_RESTART,
+                                                signal::SigSet::empty());
 
         unsafe {
             signal::sigaction(signal::SIGWINCH, &sig_action).unwrap();
@@ -87,7 +94,7 @@ impl Handler for RawHandler {
                     }
                 }
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 
@@ -116,5 +123,5 @@ impl Handler for RawHandler {
     }
 }
 
-unsafe impl ::std::marker::Send for RawHandler { }
-unsafe impl ::std::marker::Sync for RawHandler { }
+unsafe impl ::std::marker::Send for RawHandler {}
+unsafe impl ::std::marker::Sync for RawHandler {}
